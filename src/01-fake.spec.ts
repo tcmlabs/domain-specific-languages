@@ -4,8 +4,6 @@ import seedRandom from "seed-random"
 const TODO: any = undefined
 type TODO = any
 
-// todo: intro file, what does a dsl look like ?
-
 /**
  * INTRODUCTION
  *
