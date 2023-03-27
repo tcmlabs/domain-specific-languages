@@ -1,6 +1,6 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  passWithNoTests: true
-};
+	preset: "ts-jest",
+	testEnvironment: "node",
+	passWithNoTests: true,
+}

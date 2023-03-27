@@ -12,33 +12,32 @@ export namespace Config {
 	// -------------------------------------------------------------------------------------
 	// Constructors
 	// -------------------------------------------------------------------------------------
-	export const string = <A>(variableName: string): Config<string> => null as any
+	export const string = (_variableName: string): Config<string> => null as any
 
-	export const number = <A>(variableName: string): Config<number> => null as any
+	export const number = (_variableName: string): Config<number> => null as any
 
-	export const boolean = <A>(variableName: string): Config<boolean> =>
-		null as any
+	export const boolean = (_variableName: string): Config<boolean> => null as any
 
 	export const literal = <A extends readonly [string, ...string[]]>(
-		...allowedValues: A
+		..._allowedValues: A
 	): Config<A[number]> => null as any
 
-	export const always = <A>(a: A): Config<A> => null as any
+	export const always = <A>(_a: A): Config<A> => null as any
 
 	// -------------------------------------------------------------------------------------
 	// Combinators
 	// -------------------------------------------------------------------------------------
 	export const struct = <A extends Record<string, Config<any>>>(
-		struct: A,
+		_struct: A,
 	): Config<{ [K in keyof A]: A[K] extends Config<infer B> ? B : never }> =>
 		null as any
 
-	export const optional = <A>(config: Config<A>): Config<O.Option<A>> =>
+	export const optional = <A>(_config: Config<A>): Config<O.Option<A>> =>
 		null as any
 
 	export const orElse =
-		<B>(fb: Config<B>) =>
-		<A>(fa: Config<A>): Config<A | B> =>
+		<B>(_fb: Config<B>) =>
+		<A>(_fa: Config<A>): Config<A | B> =>
 			null as any
 
 	export const TODO = null as any
@@ -61,25 +60,33 @@ export namespace FS {
 	// -------------------------------------------------------------------------------------
 	// Constructors
 	// -------------------------------------------------------------------------------------
-	export const readFile = (path: Path): FileSystem<string> => null as any
+	export const readFile = (_path: Path): FileSystem<string> => null as any
 
-	export const writeFile = (path: Path, content: string): FileSystem<void> =>
+	export const writeFile = (_path: Path, _content: string): FileSystem<void> =>
 		null as any
 
-	export const deleteFile = (path: Path): FileSystem<void> => null as any
+	export const deleteFile = (_path: Path): FileSystem<void> => null as any
 
 	// -------------------------------------------------------------------------------------
 	// Combinators
 	// -------------------------------------------------------------------------------------
 	export const chain =
-		<A, B>(fab: (a: A) => FileSystem<B>) =>
-		(fa: FileSystem<A>): FileSystem<B> =>
+		<A, B>(_fab: (a: A) => FileSystem<B>) =>
+		(_fa: FileSystem<A>): FileSystem<B> =>
 			null as any
 
 	export const zipRight =
-		<B>(fb: FileSystem<B>) =>
-		<A>(fa: FileSystem<A>): FileSystem<B> =>
+		<B>(_fb: FileSystem<B>) =>
+		<A>(_fa: FileSystem<A>): FileSystem<B> =>
 			null as any
 
 	export const TODO = null as any
+}
+
+export namespace Cron {
+	 
+	 
+	 
+	 
+	 export const TODO = null as any
 }

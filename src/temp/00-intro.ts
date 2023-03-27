@@ -1,22 +1,17 @@
 import { pipe } from "@effect-ts/core/Function"
-import { Config, FS } from "./support/01"
+import { Config, FS, Cron } from "./support/00-intro"
 
 /*
- * DSLs are a way to model a solution to a specific problem.
+ * INTRODUCTION
  *
- * There's a great chance you've already used some of them:
- * - sql
- * - regex
- * - Array
- * - ...
+ * A DSL is a way to solve a complex domain problem by combining simple solutions together.
  *
- * In this section, you will  experience a few different DSLs
- * to get an idea of what it looks like, what it can do and maybe
- * start finding some similarities between all those.
- */
-const TODO = null as any
-
-/**
+ * Basically it means that, by combining a few tiny pieces together, you can accomplish very big things.
+ *
+ * This section is not about theory, the following exercises are meant to give you a feel for
+ * what a DSL looks like, what it can do and, maybe, start recognizing a few patterns between all those.
+ *
+ *
  * 01 - FILESYSTEM EXERCISE:
  *
  * You have been given a basic set of operations to deal with the filesystem.
@@ -31,7 +26,7 @@ namespace FilesystemExample {
 	 * - Copies it at the same exact location
 	 * - Appends "_copy" to the file name
 	 */
-	const duplicate = (path: FS.Path) => pipe(FS.TODO)
+	const duplicate = (_path: FS.Path) => pipe(FS.TODO)
 
 	/**
 	 * EXERCISE 02
@@ -41,7 +36,12 @@ namespace FilesystemExample {
 	 * - Copies it at a desired location
 	 * - Removes the original file
 	 */
-	const move = (path: FS.Path, newPath: FS.Path) => pipe(FS.TODO)
+	const move = (path: FS.Path, newPath: FS.Path) =>
+		pipe(
+			FS.readFile(path),
+			FS.chain(content => FS.writeFile(newPath, content)),
+			FS.chain(() => FS.deleteFile(path)),
+		)
 
 	/**
 	 * EXERCISE 03
@@ -50,7 +50,7 @@ namespace FilesystemExample {
 	 * - Takes the path of a file
 	 * - Renames it
 	 */
-	const rename = (path: FS.Path, newName: string) => pipe(FS.TODO)
+	const rename = (_path: FS.Path, _newName: string) => pipe(FS.TODO)
 }
 
 /**
@@ -108,5 +108,3 @@ namespace ConfigExample {
 	 */
 	const postgresOrSQLiteConfiguration = Config.TODO
 }
-
-// @TODO: Add 3rd example
