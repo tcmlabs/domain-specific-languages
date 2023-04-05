@@ -5,6 +5,11 @@ describe(`sequence`, () => {
 		["No fake", Fake.sequence(), []],
 		["Single fake", Fake.sequence(Fake.always("A")), ["A"]],
 		[
+			"Two fakes",
+			Fake.sequence(Fake.always("A"), Fake.always("B")),
+			["A", "B"],
+		],
+		[
 			"Many fakes",
 			Fake.sequence(
 				Fake.always("A"),
@@ -21,7 +26,7 @@ describe(`sequence`, () => {
 
 describe("Struct", () => {
 	test.each([
-		 ["No fake", Fake.struct({}), {}],
+		["No fake", Fake.struct({}), {}],
 		["Single fake", Fake.struct({ a: Fake.always("A") }), { a: "A" }],
 		[
 			"Many fakes",

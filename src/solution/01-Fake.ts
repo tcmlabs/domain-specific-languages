@@ -78,28 +78,18 @@ export const sequence = <A extends Fake<any>[]>(
 	...fas: A
 ): Fake<{
 	[K in keyof A]: A[K] extends Fake<infer B> ? B : never
-}> => {
-	const [head, ...tail] = fas
-
-	if (!head) return always([] as Record<keyof A, any>)
-
-	return pipe(
-		tail,
-		Arr.reduce(
+}> =>
+	pipe(
+		fas,
+		Arr.reduce(always([] as any[]), (acc, curr) =>
 			pipe(
-				head,
-				map(a => [a]),
-			) as Fake<any[]>,
-			(acc, curr) =>
-				pipe(
-					acc,
-					zip(curr),
-					map(([a, b]) => [...a, b]),
-				),
+				acc,
+				zip(curr),
+				map(([a, b]) => [...a, b]),
+			),
 		),
 		map(a => a as Record<keyof A, any>),
 	)
-}
 
 export const struct = <A extends Record<string, Fake<any>>>(
 	as: A,

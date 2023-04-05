@@ -129,8 +129,10 @@ test(`constructors`, () => {
  *
  * @worksheet: Write a test first to help drive the implementation
  *
- * @worksheet: Implement a new unary operator `map` that takes a Fake<A>, a function to transform it and
- * 						 returns the result of this transformation
+ * @worksheet: Implement a new unary operator `map` that:
+ * 						 - Takes a Fake<A>
+ * 						 - A function from `A` to `B`
+ * 						 - Returns a Fake<B>
  *
  * @prompt: How would `map` work on a type like `Either` that has a secondary `E` track?
  *
@@ -211,6 +213,7 @@ test(`orElse`, () => {
  * 						 - Returns the result of the solution B
  *
  * @prompt: How would `chain` work on a type like `Option` that has a secondary `None` track?
+ *
  * ---------------------------------------------------------------------------------------
  * 🧠️ `chain` is the idea of executing two dependant computations sequentially.
  * 		It is a very common operator in functional DSLs that you might also find under the name `flatMap`.
@@ -243,6 +246,7 @@ test(`chain`, () => {
  * 						 - Returns the result of both solutions
  *
  * @prompt: How would `zip` work on a type like `Either` that has a secondary `E` track?
+ *
  * ---------------------------------------------------------------------------------------
  * 🧠️ `zip` or `ap` (although their shape is slightly different) is an operator you will
  * often see in a functional DSL, it is the idea of running two computations independently of each other.
