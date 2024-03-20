@@ -1,6 +1,6 @@
 import { pipe } from "@effect-ts/core/Function"
-import { Config, FS, CSRequestFilterDSL } from "./support/00-intro"
-
+import { Config, CSRequestFilterDSL, Pipeline } from "./support/00-intro"
+import * as E from "@effect-ts/core/Either"
 /*
  * INTRODUCTION:
  *
@@ -36,15 +36,20 @@ import { Config, FS, CSRequestFilterDSL } from "./support/00-intro"
  *
  * Okay, enough theory for now, let's get our hands on a few DSL to get a feel for what it looks like, what it can do and, maybe,
  * start recognizing a few patterns before creating our owns.
+ *
+ *
+ * @note: This series assumes you understand currying, function composition and, how to use the `pipe` operator.
+ *
+ * @note: This whole series will only talk about *embedded* DSLs, AKA DSL implemented within a host language, as opposed to
+ * an *external* DSL that would have its own interpreter.
  */
 
 /**
  * Example 1: Inbox overload!
  *
- * We are the leading service in package shipping but our reputation has started to take a dive the past few months.
- *
- * Our customer service team is buried under an avalanche of emails.
- * Urgent shipping requests get lost in the mix, response times lag, and everyone feels overwhelmed.
+ * We are the leading service in package shipping but our reputation has started to take a dive the past few months,
+ * our customer service team is buried under an avalanche of emails, urgent shipping requests get lost in the mix,
+ * response times lag, and everyone feels overwhelmed.
  *
  * We need a way to streamline their workflow and bring back order to our customer service.
  *
@@ -52,6 +57,9 @@ import { Config, FS, CSRequestFilterDSL } from "./support/00-intro"
  * the thousands of support requests we receive every day.
  *
  * Until the UI is ready, as the head of the CS team, use this DSL to implement the urgent classifications the team has asked for.
+ *
+ * @meta: This is a more business oriented DSL, while the source is regular code, it is meant to be handled
+ * 				by stakeholders through a UI.
  *
  * @meta: This DSL is incomplete, technically we only have the matching/tagging DSL here (does a request match an inbox),
  * 				but we have no notion of what inbox/team the request should be sent to/which inbox to prioritize to
@@ -216,7 +224,8 @@ describe(`Inbox overload`, () => {
 	 *
 	 * @meta: should the knowledge of "75% of the allowed SLA response time" be coded in the DSL and exposed as a primitive
 	 * 				or a rule to be defined manually by the CS or the sales team?
-	 * 			  You could argue both, having this knowledge in the code ensures consistency
+	 * 			  You could argue both, having this knowledge in the code ensures consistency but not having it in the code allows
+	 * 			  flexibility for the stakeholders.
 	 */
 	describe(`Urgent requests`, () => {
 		// Destructure the DSL methods you want to use here or directly access them via `EmailTaggingDSL.*`
@@ -427,191 +436,609 @@ describe(`Inbox overload`, () => {
 	})
 })
 
-/*
- * Example 2: Title
- *
- * dev kind example (config)
- * and/or/not/default/...
- *
- * Example 3
- *
- * pipeline
- * and/or/not/default/...
- *
- */
-
 /**
- * 01 - FILESYSTEM EXERCISE:
+ * Example 2: Configuration Hell
  *
- * You have been given a basic set of operations to deal with the filesystem.
- * Using only those basic operations, build the missing (more complex) ones.
+ * Our company has been booming! We've taken on many new clients, and our application has grown significantly
+ * to support their diverse needs.
  *
- * @note: Access the basic operations using `FS.*`
+ * However, this growth has come with a cost: application configuration.
+ *
+ * Booting the application now requires a massive amount of environment and client-specific configuration files.
+ * This is becoming difficult to maintain, and keeping track of everything is a nightmare. We're constantly worried about
+ * errors or missing configurations.
+ *
+ * To solve this, we've designed a small DSL to help validate and load the configuration in a typesafe way,
+ * but we're not quite sure, yet it's going to work out.
+ *
+ * Can you prove it will be able to fulfill every use case we have in mind?
+ *
+ * @meta: This is a more development oriented DSL, it is meant to be handled via code and probably wouldn't make much sense for
+ * 				a non-technical person.
  */
-namespace FilesystemExample {
+describe(`Configuration hell`, () => {
 	/**
-	 * EXERCISE 01
+	 * Exercise 01:
 	 *
-	 * Create a `duplicate` function that:
-	 * - Takes the path of a file
-	 * - Copies it at the same exact location
-	 * - Appends "_copy" to the file name
+	 * Okay, first, we should probably make sure that we can read any variable from the environment
+	 * and enforce its type.
+	 *
+	 * @worksheet: Read the variable `APPLICATION_VERSION` as a string and the variable `APPLICATION_PORT` as a number
 	 */
-	const duplicate = (_path: FS.Path) => pipe(FS.TODO)
+	describe(`Read from environment`, () => {
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { string, number } = Config
+		const readApplicationVersion = string("APPLICATION_VERSION")
+		const readApplicationPort = number("APPLICATION_PORT")
+
+		test(`Read as string`, () => {
+			expect(readApplicationVersion({ APPLICATION_VERSION: "v1.1.2" })).toEqual(
+				E.right("v1.1.2"),
+			)
+		})
+
+		test(`Read as number`, () => {
+			expect(readApplicationPort({ APPLICATION_PORT: "1234" })).toEqual(
+				E.right(1234),
+			)
+		})
+
+		test(`Trying to cast a non number to a number fails`, () => {
+			expect(readApplicationPort({ APPLICATION_PORT: "not_a_number" })).toEqual(
+				E.left(expect.any(Config.FailureKind.Invalid)),
+			)
+		})
+
+		test(`Trying to read a missing variable fails`, () => {
+			expect(readApplicationPort({})).toEqual(
+				E.left(expect.any(Config.FailureKind.Missing)),
+			)
+		})
+	})
 
 	/**
 	 * EXERCISE 02
 	 *
-	 * Create a `move` function that:
-	 * - Takes the path of a file
-	 * - Copies it at a desired location
-	 * - Removes the original file
+	 * As said before, we have quite a lot of configuration, and we'd rather not have the app start if any configuration key is
+	 * missing so, we should be able to read any number of keys from the environment and group them
+	 * under a single typed configuration object that can be used across the application.
+	 *
+	 * @worksheet: Declare a configuration object (`struct`) with the following shape:
+	 *  ```
+	 *  {
+	 *  	port: number,
+	 *  	version: string
+	 * 	}
+	 * 	```
+	 * ...retrieving the following values from the environment:
+	 * - *APPLICATION_PORT*: `number`
+	 * - *APPLICATION_VERSION*: `string`
 	 */
-	const move = (path: FS.Path, newPath: FS.Path) =>
-		pipe(
-			FS.readFile(path),
-			FS.chain(content => FS.writeFile(newPath, content)),
-			FS.chain(() => FS.deleteFile(path)),
-		)
+	describe(`Configuration object`, () => {
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { struct, number, string } = Config
+
+		const readConfiguration = struct({
+			port: number("APPLICATION_PORT"),
+			version: string("APPLICATION_VERSION"),
+		})
+
+		test(`All required configuration available returns config object`, () => {
+			expect(
+				readConfiguration({
+					APPLICATION_PORT: "1234",
+					APPLICATION_VERSION: "IG.4.3.12",
+				}),
+			).toStrictEqual(
+				E.right({
+					port: 1234,
+					version: "IG.4.3.12",
+				}),
+			)
+		})
+
+		test(`Any required configuration missing fails`, () => {
+			expect(readConfiguration({})).toStrictEqual(
+				E.left(expect.any(Config.FailureKind.Missing)),
+			)
+		})
+	})
 
 	/**
 	 * EXERCISE 03
 	 *
-	 * Create a `rename` function that:
-	 * - Takes the path of a file
-	 * - Renames it
+	 * As suggested by our environment variable names `APPLICATION_PORT` and `APPLICATION_VERSION`,
+	 * we should probably be able to nest configuration.
+	 *
+	 * @worksheet: Scope all application configuration under an `application` sub-configuration.
+	 *
+	 * @prompt: Note how we were able to influence the resulting structure but the input hasn't changed
 	 */
-	const rename = (_path: FS.Path, _newName: string) => pipe(FS.TODO)
-}
+	describe(`Nested configuration`, () => {
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { struct, number, string } = Config
 
-/**
- * 02 - CONFIGURATION EXERCISE
- *
- * Our app configuration is becoming increasingly hard to maintain and keeping track
- * of what exists is becoming a bit of a nightmare.
- *
- * To solve this, we've been given a DSL designed to help validate and load the configuration in a typesafe way.
- * Use it to fulfill the following use cases:
- *
- * @note: Access the basic operations using `Config.*`
- */
-namespace ConfigExample {
-	/**
-	 * EXERCISE 01
-	 *
-	 * Declare a configuration object (`struct`) retrieving the following values from the environment:
-	 * - *PORT*: `number`
-	 * - *DATABASE_PORT*: `number`
-	 * - *DATABASE_HOST*: `string`
-	 *
-	 */
-	const basicConfiguration = Config.TODO
+		const readConfiguration = struct({
+			application: struct({
+				port: number("APPLICATION_PORT"),
+				version: string("APPLICATION_VERSION"),
+			}),
+		})
 
-	/**
-	 * EXERCISE 02
-	 *
-	 * To make configuration usage easier, scope all the database configuration
-	 * under a `database` field.
-	 *
-	 */
-	const nestedConfiguration = Config.TODO
+		test(`All required sub-configuration elements available returns config object`, () => {
+			expect(
+				readConfiguration({
+					APPLICATION_PORT: "1234",
+					APPLICATION_VERSION: "v1.1.1",
+				}),
+			).toStrictEqual(
+				E.right({
+					application: {
+						port: 1234,
+						version: "v1.1.1",
+					},
+				}),
+			)
+		})
 
-	/**
-	 * EXERCISE 03
-	 *
-	 * Add an `optional` *REGION* config that can only be
-	 * one of the following values: `["eu", "us"]`
-	 *
-	 * */
-	const withOptionalValue = Config.TODO
+		test(`Any sub-configuration element missing fails`, () => {
+			expect(readConfiguration({})).toStrictEqual(
+				E.left(expect.any(Config.FailureKind.Missing)),
+			)
+		})
+
+		test(`Any sub-configuration element invalid fails`, () => {
+			expect(
+				readConfiguration({
+					APPLICATION_VERSION: "v1.1.1",
+					APPLICATION_PORT: "not_a_number",
+				}),
+			).toStrictEqual(E.left(expect.any(Config.FailureKind.Invalid)))
+		})
+	})
 
 	/**
 	 * EXERCISE 04
 	 *
-	 * When running tests, we want our application to be able to use an in-memory database.
-	 * Modify the database configuration to either accept a PG connection or an SQLite connection.
+	 * Some variables might not be required to make the application run.
 	 *
-	 * Postgres:
-	 * - *DATABASE_HOST*: `string`
-	 * - *DATABASE_PORT*: `string`
-	 * SQLite:
-	 * - *SQLITE_FILE_PATH*: `string`
-	 *
-	 * Add `_tag: "POSTGRES"|"SQLITE"` to make dealing with the union type easier. (hint: use `map` or `always`)
+	 * @worksheet: Read the`APPLICATION_PORT` variable from the environment.
+	 * 						 It must either be present and of type number or, not be present at all.
 	 */
-	const postgresOrSQLiteConfiguration = Config.TODO
-}
+	describe(`Optional values`, () => {
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { number, optional } = Config
 
-// namespace APIExample {
-// 	/**
-// 	 * Exercise 01:
-// 	 *
-// 	 * Define a guard authorizing a user to access a feature if he has either of these permissions:
-// 	 * - users:read
-// 	 * - users:all
-// 	 */
-// 	const canReadUserGuard = pipe(
-// 		GUARD.authorization("users:read"),
-// 		GUARD.orElse(GUARD.authorization("users:all")),
-// 	)
-//
-// 	/**
-// 	 * Exercise 02:
-// 	 *
-// 	 * Define a guard allowing only clients with access to the white-label option.
-// 	 *
-// 	 * To have access to the white-label option, a client must have a membership level of gold or platinum.
-// 	 */
-// 	const canAccessWhiteLabelGuard = pipe(
-// 		GUARD.membership("gold"),
-// 		GUARD.orElse(GUARD.membership("platinum")),
-// 	)
-//
-// 	/**
-// 	 * Exercise 03:
-// 	 *
-// 	 * Define a guard requiring the caller to have:
-// 	 * - The users:read authorization or the users:read authorization
-// 	 * - Have access to the white-label endpoints
-// 	 */
-// 	const canReadUsersAndIsWhiteLabel = pipe(
-// 		canReadUserGuard,
-// 		GUARD.and(canAccessWhiteLabelGuard),
-// 	)
-//
-// 	/**
-// 	 * Exercise 04:
-// 	 *
-// 	 * What is the difference between those two guards?
-// 	 * @private
-// 	 */
-// 	const guardA = pipe(
-// 		GUARD.isInternalClient,
-// 		GUARD.orElse(canReadUserGuard),
-// 		GUARD.and(canAccessWhiteLabelGuard),
-// 	)
-//
-// 	const guardB = pipe(
-// 		GUARD.isInternalClient,
-// 		GUARD.orElse(
-// 			pipe(
-// 				canReadUserGuard, //
-// 				GUARD.and(canAccessWhiteLabelGuard),
-// 			),
-// 		),
-// 	)
-//
-// 	/**
-// 	 * Exercise 05:
-// 	 *
-// 	 * Define a /users endpoint that can list all the users.
-// 	 *
-// 	 * A user must have either the `users:read` or the `users:all` authorization
-// 	 */
-// 	const listUsers = pipe(API.endpoint("/users"), API.guard(canReadUserGuard))
-// }
-//
-// /*
-//  * @note: This whole series will only talk about *embedded* DSLs, AKA DSL implemented within a host language, as opposed to
-//  * an *external* DSL that would have its own interpreter.
-//  */
+		const readConfiguration = optional(number("APPLICATION_PORT"))
+
+		test(`APPLICATION_PORT env variable available return value`, () => {
+			expect(
+				readConfiguration({
+					APPLICATION_PORT: "1234",
+				}),
+			).toStrictEqual(E.right(1234))
+		})
+
+		test(`APPLICATION_PORT env variable available succeeds with undefined`, () => {
+			expect(readConfiguration({})).toStrictEqual(E.right(undefined))
+		})
+
+		test(`Invalid APPLICATION_PORT value fails`, () => {
+			expect(
+				readConfiguration({
+					APPLICATION_PORT: "not_a_number",
+				}),
+			).toStrictEqual(E.left(expect.any(Config.FailureKind.Invalid)))
+		})
+	})
+
+	/**
+	 * EXERCISE 05
+	 *
+	 * You know what, maybe we can have the best of both world, we can accept a value not being present but still provide a default.
+	 *
+	 * @worksheet: Read the`APPLICATION_PORT` variable from the environment.
+	 * 						 If it is present, it must succeed with the given value, otherwise it must default to 3000.
+	 * 					   If the provided value is invalid, then it must fail.
+	 */
+	describe(`Default values`, () => {
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { number, defaultTo } = Config
+
+		const readConfiguration = pipe(number("APPLICATION_PORT"), defaultTo(3000))
+
+		test(`APPLICATION_PORT env variable available return value`, () => {
+			expect(
+				readConfiguration({
+					APPLICATION_PORT: "1234",
+				}),
+			).toStrictEqual(E.right(1234))
+		})
+
+		test(`APPLICATION_PORT env variable available succeeds with undefined`, () => {
+			expect(readConfiguration({})).toStrictEqual(E.right(3000))
+		})
+
+		test(`Invalid APPLICATION_PORT value fails`, () => {
+			expect(
+				readConfiguration({
+					APPLICATION_PORT: "not_a_number",
+				}),
+			).toStrictEqual(E.left(expect.any(Config.FailureKind.Invalid)))
+		})
+	})
+
+	/**
+	 * EXERCISE 06
+	 *
+	 * Time for a real-life use case.
+	 *
+	 * @worksheet: Declare a configuration object of the following shape:
+	 * ```
+	 * {
+	 *    application: {
+	 *       port: number, // Must default to 3000
+	 *       version: string
+	 *    },
+	 *    database: // A connection string or else a config object
+	 *    	| URL
+	 *    	| {
+	 *    			host: string,
+	 *    			port: number
+	 * 			  }
+	 * }
+	 * ```
+	 *
+	 * @prompt: Note how the configuration requirements became way more complex, but the effort to implement the schema was the same as before.
+	 */
+	describe(`Complex configuration`, () => {
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { number, defaultTo, struct, string, url, orElse } = Config
+
+		const readConfiguration = struct({
+			application: struct({
+				version: string("APPLICATION_VERSION"),
+				port: pipe(number("APPLICATION_PORT"), defaultTo(3000)),
+			}),
+			database: pipe(
+				url("DATABASE_CONNECTION_STRING"),
+				orElse(
+					struct({
+						host: string("DATABASE_HOST"),
+						port: number("DATABASE_PORT"),
+					}),
+				),
+			),
+		})
+
+		test(`Port defaults to 3000`, () => {
+			expect(
+				pipe(
+					readConfiguration({
+						APPLICATION_VERSION: "version",
+						DATABASE_CONNECTION_STRING: "http://connection.string",
+					}),
+					E.map(a => a.application.port),
+				),
+			).toStrictEqual(E.right(3000))
+		})
+
+		test(`Database accepts a connection string`, () => {
+			expect(
+				pipe(
+					readConfiguration({
+						APPLICATION_VERSION: "version",
+						DATABASE_CONNECTION_STRING: "http://connection.string",
+					}),
+					E.map(a => a.database),
+				),
+			).toStrictEqual(E.right("http://connection.string"))
+		})
+
+		test(`Database accepts a configuration object`, () => {
+			expect(
+				pipe(
+					readConfiguration({
+						APPLICATION_VERSION: "version",
+						DATABASE_PORT: "1234",
+						DATABASE_HOST: "db.host",
+					}),
+					E.map(a => a.database),
+				),
+			).toStrictEqual(
+				E.right({
+					port: 1234,
+					host: "db.host",
+				}),
+			)
+		})
+
+		test(`Invalid application configuration fails`, () => {
+			expect(
+				pipe(
+					readConfiguration({
+						APPLICATION_VERSION: "version",
+						APPLICATION_PORT: "not_a_number",
+						DATABASE_PORT: "1234",
+						DATABASE_HOST: "db.host",
+					}),
+				),
+			).toStrictEqual(
+				E.left(
+					new Config.FailureKind.Invalid({
+						error: expect.any(String),
+						variableName: "APPLICATION_PORT",
+					}),
+				),
+			)
+		})
+
+		test(`Invalid database configuration fails`, () => {
+			expect(
+				pipe(
+					readConfiguration({
+						APPLICATION_VERSION: "version",
+						APPLICATION_PORT: "1234",
+						DATABASE_PORT: "not_a_number",
+						DATABASE_HOST: "db.host",
+					}),
+				),
+			).toStrictEqual(
+				E.left(
+					new Config.FailureKind.Invalid({
+						error: expect.any(String),
+						variableName: "DATABASE_PORT",
+					}),
+				),
+			)
+		})
+
+		test(`Missing database configuration fails`, () => {
+			expect(
+				pipe(
+					readConfiguration({
+						APPLICATION_VERSION: "version",
+						APPLICATION_PORT: "1234",
+					}),
+				),
+			).toStrictEqual(
+				E.left(
+					new Config.FailureKind.Missing({
+						variableName: "DATABASE_PORT",
+					}),
+				),
+			)
+		})
+
+		test(`Missing application configuration fails`, () => {
+			expect(
+				pipe(
+					readConfiguration({
+						APPLICATION_PORT: "1234",
+						DATABASE_PORT: "1234",
+						DATABASE_HOST: "db.host",
+					}),
+				),
+			).toStrictEqual(
+				E.left(
+					new Config.FailureKind.Missing({
+						variableName: "APPLICATION_VERSION",
+					}),
+				),
+			)
+		})
+	})
+})
+
+/**
+ * Example 03:
+ *
+ * Our company's recent growth has been amazing!  New clients keep coming on board,
+ * and we're constantly pushing out updates and features to keep them happy.
+ *
+ * However, our current deployment pipeline is becoming a bit of a roadblock, as we take on new clients and features,
+ * the deployment scenarios get more complex, and the YAML struggles to keep up. Additionally, the YAML syntax has proven
+ * difficult to understand and maintain, which slows everything down.
+ *
+ * This ultimately means it takes longer to get new features out the door.
+ *
+ * The team has designed a pipeline DSL that will allow us to ditch the cryptic YAML syntax for familiar TypeScript.
+ * The DSL provides the tools we need to write clear and concise pipelines, even for complex deployments and,
+ * since we already know TypeScript, writing, understanding, and maintaining deployment pipelines should become a breeze.
+ *
+ * Let's have a go at it to see if we can fulfill the use cases we have!
+ */
+describe(`Pipeline`, () => {
+	/**
+	 * Let's start with a basic pipeline, we'll improve on it later.
+	 *
+	 * Define a pipeline runs the following steps one after the other
+	 * - Build: runs the `npm run build` command
+	 * - Unit test: runs the `npm run test:unit` command
+	 * - Integration test: runs the `npm run test:integration` command
+	 * - Release: runs the custom `deployScript` function
+	 */
+	test(`Basic pipeline`, async () => {
+		const deployScript = jest.fn().mockResolvedValue(undefined)
+
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { stage, cmd, script, then, run, describe } = Pipeline
+
+		const deployment = pipe(
+			stage("Build", cmd("npm run build")),
+			then(stage("Unit test", cmd("npm run test:unit"))),
+			then(stage("Integration test", cmd("npm run test:integration"))),
+			then(stage("Release", script(deployScript))),
+		)
+
+		expect(describe(deployment)).toBe(
+			`
+┬ (Sequential)
+├─┬ Build
+│ └── npm run build
+├─┬ Unit test
+│ └── npm run test:unit
+├─┬ Integration test
+│ └── npm run test:integration
+└─┬ Release
+  └── Custom script
+			`.trim(),
+		)
+
+		await run(deployment)
+		expect(deployScript).toHaveBeenCalled()
+	})
+
+	/**
+	 * To make it easier to follow the state of each pipeline, we have a live view of every running pipeline on slack.
+	 * Right now our presentation is a bit lacking, can you improve on it by nesting the two test stages under a test stage?
+	 *
+	 * @prompt: Note how with a single pipeline definition we are able to both visually describe what happens AND run everything? Keep that in mind for later.
+	 */
+	test(`Better feedback`, async () => {
+		const deployScript = jest.fn().mockResolvedValue(undefined)
+
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { stage, cmd, script, then, run, describe } = Pipeline
+
+		const deployment = pipe(
+			stage("Build", cmd("npm run build")),
+			then(
+				stage(
+					"Test",
+					pipe(
+						stage("Unit test", cmd("npm run test:unit")),
+						then(stage("Integration test", cmd("npm run test:integration"))),
+					),
+				),
+			),
+			then(stage("Release", script(deployScript))),
+		)
+
+		expect(describe(deployment)).toBe(
+			`
+┬ (Sequential)
+├─┬ Build
+│ └── npm run build
+├─┬ Test
+│ └─┬ (Sequential)
+│   ├─┬ Unit test
+│   │ └── npm run test:unit
+│   └─┬ Integration test
+│     └── npm run test:integration
+└─┬ Release
+  └── Custom script
+			`.trim(),
+		)
+
+		await run(deployment)
+		expect(deployScript).toHaveBeenCalled()
+	})
+
+	/**
+	 * Everything was working nicely but, having to wait for the unit tests to run before starting the integration tests feels like a waste of time.
+	 * Could you run both in parallel to save time and infrastructure cost?
+	 */
+	test(`Optimizing the pipeline`, async () => {
+		const deployScript = jest.fn().mockResolvedValue(undefined)
+
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { stage, cmd, script, then, and, run, describe } = Pipeline
+
+		const deployment = pipe(
+			stage("Build", cmd("npm run build")),
+			then(
+				stage(
+					"Test",
+					pipe(
+						stage("Unit test", cmd("npm run test:unit")),
+						and(stage("Integration test", cmd("npm run test:integration"))),
+					),
+				),
+			),
+			then(stage("Release", script(deployScript))),
+		)
+
+		expect(describe(deployment)).toBe(
+			`
+┬ (Sequential)
+├─┬ Build
+│ └── npm run build
+├─┬ Test
+│ └─┬ (Parallel)
+│   ├─┬ Unit test
+│   │ └── npm run test:unit
+│   └─┬ Integration test
+│     └── npm run test:integration
+└─┬ Release
+  └── Custom script
+		`.trim(),
+		)
+
+		await run(deployment)
+		expect(deployScript).toHaveBeenCalled()
+	})
+
+	/**
+	 * Sooooo, turns out sometimes the deployment crashes. While there's definitely an issue to fix there, we do have to make that if this happens,
+	 * we can put the application back to a healthy state.
+	 *
+	 * Can you make sure that when the release stage fails, we trigger the rollback script ?
+	 *
+	 * @prompt: What happens if the pipeline fails before the release stage ?
+	 */
+	test(`Error handling`, async () => {
+		const deployScript = jest.fn().mockRejectedValue(undefined)
+		const rollbackScript = jest.fn().mockResolvedValue(undefined)
+
+		// Destructure the DSL methods you want to use here or directly access them via `Configuration.*`
+		const { stage, cmd, script, then, and, recover, describe, run } = Pipeline
+
+		const deployment = pipe(
+			stage("Build", cmd("npm run build")),
+			then(
+				stage(
+					"Test",
+					pipe(
+						stage("Unit test", cmd("npm run test:unit")),
+						and(stage("Integration test", cmd("npm run test:integration"))),
+					),
+				),
+			),
+			then(
+				pipe(
+					stage("Release", script(deployScript)),
+					recover(stage("Rollback", script(rollbackScript))),
+				),
+			),
+		)
+
+		expect(describe(deployment)).toBe(
+			`
+┬ (Sequential)
+├─┬ Build
+│ └── npm run build
+├─┬ Test
+│ └─┬ (Parallel)
+│   ├─┬ Unit test
+│   │ └── npm run test:unit
+│   └─┬ Integration test
+│     └── npm run test:integration
+└─┬ (Sequential)
+  ├─┬ Release
+  │ └── Custom script
+  └─┬ !!Recover!!
+    └─┬ Rollback
+      └── Custom script
+			`.trim(),
+		)
+
+		await run(deployment)
+		expect(deployScript).toHaveBeenCalled()
+		expect(rollbackScript).toHaveBeenCalled()
+	})
+})
+
+
+// @todo: remove test content
+// @TODO: What pattern do you see? What do you think the drawbacks might be, see, the power us in tiny pieces that you combine together A AND B THEN C
