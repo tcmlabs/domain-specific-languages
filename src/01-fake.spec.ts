@@ -5,29 +5,6 @@ const TODO: any = undefined
 type TODO = any
 
 /**
- * INTRODUCTION
- *
- * A DSL is a way to solve a complex domain problem by combining simple solutions together.
- *
- * It is composed of three parts:
- * - The model:    The data structure supporting the DSL
- * - Constructors: A set of fundamental solutions to the problem domain solved by the DSL
- * - Operators:    A set of operations that allow the transformation or combination of simple
- * 								 solutions to solve more complex problems
- *
- * For example, one of the most powerful DSLs you've been using all your life is number.
- *
- * You can construct simple solutions:
- * `const number = 1`
- *
- * You can operate on these solutions to solve more complex problems:
- * `const complex = 1 * 2 / 3 + 4
- *
- * Note that one of the most recognizable feature of a DSL is it's recursivity,
- * whether you construct/add/subtract/[...] a number, you always get a number back.
- *
- * @worksheet: Can you think of at least 3 other DSLs you've been using all your programming life ?
- *
  * USE CASE
  *
  * Our data team needs to generate random giant sets of data for the new demonstration application
